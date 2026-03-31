@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Bobble Arcade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="game-container">
+        <div id="ui-layer">
+            <div class="score-board">
+                <div class="p1-score">1P <span id="p1-score-val">00</span></div>
+                <div class="high-score">HIGH SCORE <span id="high-score-val">100000</span></div>
+                <div class="round-timer">ROUND <span id="round-val">01</span></div>
+            </div>
+        </div>
+        <canvas id="gameCanvas" tabindex="0"></canvas>
+        <div id="start-overlay">
+            <h1>CLICK TO START</h1>
+        </div>
+        <div id="loading-screen" style="display:none;">
+            <h1>LOADING...</h1>
+        </div>
+    </div>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
