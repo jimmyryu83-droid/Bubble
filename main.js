@@ -18,13 +18,16 @@ class Game {
         
         this.currentLevel = 0;
         this.isLevelTransitioning = false;
+        this.levelClearWaitTimer = 0; // 적 전멸 후 5초 대기용
         this.transitionTimer = 0;
+        this.transitionYOffset = 0; // 배경 이동용 오프셋
         
         this.input = {
             keys: []
         };
         this.score = 0;
         this.highScore = 150000;
+        this.lives = 3; // 기본 목숨 1 + 추가 2 = 3
         this.isGameOver = false;
 
         this.initInput();
@@ -45,6 +48,12 @@ class Game {
             if (!this.input.keys.includes(e.key)) this.input.keys.push(e.key);
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
                 e.preventDefault();
+            }
+            // Cheat Key: N (Skip level)
+            if (e.key.toLowerCase() === 'n' && !this.isLevelTransitioning) {
+                this.enemies = []; // 적 전멸 처리
+                this.levelClearWaitTimer = 0; // 즉시 대기 끝
+                console.log('CHEAT: Next Level Skip');
             }
         });
         this.canvas.addEventListener('keyup', (e) => {
@@ -71,6 +80,11 @@ class Game {
         this.player.vx = 0;
         this.player.vy = 0;
         
+        this.player.isTransitioning = false; // 버블에서 탈출
+        this.player.transitionBubbleTimer = 0;
+        this.transitionYOffset = 0; // 오프셋 초기화
+        this.levelClearWaitTimer = 0; // 대기 타이머 초기화
+        
         document.getElementById('round-val').innerText = level.round.toString().padStart(2, '0');
         this.isLevelTransitioning = false;
         
@@ -81,11 +95,12 @@ class Game {
     nextLevel() {
         if (this.isLevelTransitioning) return;
         this.isLevelTransitioning = true;
-        this.transitionTimer = 3000;
+        this.transitionTimer = 2000; // 전환 연출 시간 (2초)
+        this.player.isTransitioning = true; // 주인공 버블에 가두기
     }
 
-    shootBubble(x, y, direction) {
-        this.bubbles.push(new Bubble(this, x, y, direction));
+    shootBubble(x, y, direction, speed) {
+        this.bubbles.push(new Bubble(this, x, y, direction, speed));
     }
 
     removeBubble(bubble) {
@@ -94,11 +109,19 @@ class Game {
 
     spawnFood(x, y, type = 'fruit') {
         const foodTypes = [
-            { name: 'cherry', color: '#ff3366', value: 500, sx: 0, sy: 0 },
-            { name: 'banana', color: '#ffff33', value: 800, sx: 32, sy: 0 },
-            { name: 'apple', color: '#ff3333', value: 1000, sx: 64, sy: 0 },
+            { name: 'cherry', color: '#ff3366', value: 500, type: 'fruit' },
+            { name: 'banana', color: '#ffff33', value: 800, type: 'fruit' },
+            { name: 'apple', color: '#ff3333', value: 1000, type: 'fruit' },
+            { name: 'yellowCandy', color: '#ffff00', value: 200, type: 'powerup_speed' },
+            { name: 'blueCandy', color: '#00ccff', value: 200, type: 'powerup_range' },
         ];
-        const food = foodTypes[Math.floor(Math.random() * foodTypes.length)];
+        
+        // 사탕은 20% 확률로 등장 (과일 80%)
+        let food;
+        const rand = Math.random();
+        if (rand < 0.1) food = foodTypes[3]; // Yellow
+        else if (rand < 0.2) food = foodTypes[4]; // Blue
+        else food = foodTypes[Math.floor(Math.random() * 3)]; // Fruits
         
         this.foods.push({
             x: x,
@@ -110,6 +133,7 @@ class Game {
             value: food.value,
             color: food.color,
             name: food.name,
+            type: food.type,
             lifetime: 0
         });
     }
@@ -132,6 +156,13 @@ class Game {
     gameLoop() {
         if (this.isGameOver) {
             this.draw();
+            // 게임 오버 메시지
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = '48px "Press Start 2P"';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('GAME OVER', 400, 300);
+            this.ctx.font = '24px "Press Start 2P"';
+            this.ctx.fillText('CLICK TO RESTART', 400, 360);
             return;
         }
 
@@ -144,6 +175,8 @@ class Game {
     update() {
         if (this.isLevelTransitioning) {
             this.transitionTimer -= 16;
+            this.transitionYOffset -= 2; // 배경이 위로 서서히 올라가는 효과
+            this.player.update(); // 주인공 버블 애니메이션을 위해 호출
             if (this.transitionTimer <= 0) {
                 this.loadLevel(this.currentLevel + 1);
             }
@@ -177,6 +210,7 @@ class Game {
                     if ((enemy.state === 'alive' || enemy.state === 'angry') && this.checkCollision(bubble, enemy)) {
                         bubble.state = 'trapped';
                         bubble.trappedEnemy = enemy;
+                        bubble.vy = -0.8; // 즉시 위로 떠오르기 시작
                         enemy.state = 'trapped';
                     }
                 });
@@ -198,9 +232,10 @@ class Game {
         });
 
         // Food update and collection
-        this.foods.forEach((food, index) => {
+        this.foods = this.foods.filter(food => {
             food.vy += food.gravity;
             food.y += food.vy;
+            food.lifetime += 16; // 약 16ms씩 증가
             
             // Food collision with platforms
             this.platforms.forEach(p => {
@@ -215,13 +250,34 @@ class Game {
             if (this.checkCollision(this.player, food)) {
                 this.score += food.value;
                 this.updateScore();
-                this.foods.splice(index, 1);
+
+                // 아이템 효과 적용
+                if (food.type === 'powerup_speed') {
+                    this.player.shootDelay = Math.max(100, this.player.shootDelay - 30);
+                    console.log('연사력 강화!', this.player.shootDelay);
+                } else if (food.type === 'powerup_range') {
+                    this.player.bubbleSpeed = Math.min(20, this.player.bubbleSpeed + 2);
+                    console.log('사거리 강화!', this.player.bubbleSpeed);
+                }
+
+                return false; // 먹었으면 제거
             }
+            
+            // 3초(3000ms) 지나면 사라짐
+            return food.lifetime < 3000;
         });
 
-        // Level Clear Check
-        if (this.enemies.length === 0 && this.foods.length === 0 && !this.isLevelTransitioning) {
-            this.nextLevel();
+        // Level Clear Check: 적만 전멸하면 5초간 아이템 먹을 시간 부여
+        if (this.enemies.length === 0 && !this.isLevelTransitioning) {
+            if (this.levelClearWaitTimer === 0) {
+                this.levelClearWaitTimer = 5000; // 5초 대기 시작
+                console.log('LEVEL CLEAR! 5s waiting for items...');
+            }
+            
+            this.levelClearWaitTimer -= 16;
+            if (this.levelClearWaitTimer <= 0) {
+                this.nextLevel(); // 대기 후 연출 시작
+            }
         }
     }
 
@@ -244,40 +300,59 @@ class Game {
         this.ctx.shadowBlur = 10;
         this.ctx.shadowColor = wallColor;
         this.ctx.fillStyle = wallColor; 
-        this.ctx.fillRect(0, 568, 800, 32); 
-        this.ctx.fillRect(0, 0, 32, 600);   
-        this.ctx.fillRect(768, 0, 32, 600); 
+        
+        // 오프셋을 적용한 그리기 (벽과 바닥)
+        const offset = this.transitionYOffset;
+        this.ctx.fillRect(0, 568 + offset, 800, 32); 
+        this.ctx.fillRect(0, offset, 32, 600);   
+        this.ctx.fillRect(768, offset, 32, 600); 
 
         // Draw Platforms with brick pattern
         this.platforms.forEach(p => {
             this.ctx.fillStyle = wallColor;
-            this.ctx.fillRect(p.x, p.y, p.w, p.h);
+            this.ctx.fillRect(p.x, p.y + offset, p.w, p.h);
             this.ctx.strokeStyle = '#fff';
             this.ctx.lineWidth = 2;
-            this.ctx.strokeRect(p.x, p.y, p.w, p.h);
+            this.ctx.strokeRect(p.x, p.y + offset, p.w, p.h);
             
             // Internal lines for bricks
             this.ctx.lineWidth = 1;
             this.ctx.beginPath();
             for(let bx = p.x + 32; bx < p.x + p.w; bx += 32) {
-                this.ctx.moveTo(bx, p.y);
-                this.ctx.lineTo(bx, p.y + p.h);
+                this.ctx.moveTo(bx, p.y + offset);
+                this.ctx.lineTo(bx, p.y + offset + p.h);
             }
             this.ctx.stroke();
         });
         this.ctx.shadowBlur = 0;
 
         // Draw HUD overlay (optional if CSS is used, but good to have)
-        if (this.isLevelTransitioning) {
-            this.ctx.fillStyle = 'white';
-            this.ctx.font = '32px "Press Start 2P"';
-            this.ctx.textAlign = 'center';
-            this.ctx.fillText('NEXT ROUND!', 400, 300);
-        }
-
         this.player.draw(this.ctx);
         this.bubbles.forEach(bubble => bubble.draw(this.ctx));
         this.enemies.forEach(enemy => enemy.draw(this.ctx));
+        this.drawLives(this.ctx);
+    }
+
+    drawLives(ctx) {
+        const startX = 40;
+        const startY = 585;
+        const size = 10;
+        const spacing = 20;
+
+        ctx.fillStyle = '#0affff'; // 다이아몬드 색상 (네온 블루)
+        ctx.shadowBlur = 5;
+        ctx.shadowColor = '#0affff';
+
+        for (let i = 0; i < this.lives; i++) {
+            ctx.beginPath();
+            ctx.moveTo(startX + i * spacing, startY - size); // Top
+            ctx.lineTo(startX + i * spacing + size, startY); // Right
+            ctx.lineTo(startX + i * spacing, startY + size); // Bottom
+            ctx.lineTo(startX + i * spacing - size, startY); // Left
+            ctx.closePath();
+            ctx.fill();
+        }
+        ctx.shadowBlur = 0;
         
         // Draw Food
         this.foods.forEach(food => {

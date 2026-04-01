@@ -38,13 +38,20 @@ export class Player {
         };
 
         this.lastShot = 0;
-        this.shootDelay = 250;
+        this.shootDelay = 250; // 기본 발사 간격 (ms)
+        this.bubbleSpeed = 10; // 기본 버블 속도
         this.isShooting = false;
         this.shootingTimer = 0;
 
         // 640x640 sheet -> 6 cols, 4 rows
         this.colWidth = 640 / 6;
         this.rowHeight = 640 / 4;
+
+        // 스테이지 전환 정보
+        this.isTransitioning = false;
+        this.transitionBubbleTimer = 0;
+        this.bubbleSprite = new Image();
+        this.bubbleSprite.src = 'assets/tiles.png';
     }
 
     processImage() {
@@ -68,6 +75,13 @@ export class Player {
     }
 
     update(input) {
+        if (this.isTransitioning) {
+            // 전환 중에는 입력 및 물리 무시, 서서히 위로 떠오름
+            this.y -= 1.5;
+            this.transitionBubbleTimer += 16;
+            return;
+        }
+
         const keys = input.keys;
         const leftKey = this.isPlayer2 ? 'a' : 'ArrowLeft';
         const rightKey = this.isPlayer2 ? 'd' : 'ArrowRight';
@@ -105,7 +119,7 @@ export class Player {
         }
 
         if (keys.includes(shootKey) && Date.now() - this.lastShot > this.shootDelay) {
-            this.game.shootBubble(this.x + (this.direction === 1 ? this.width : 0), this.y + 10, this.direction);
+            this.game.shootBubble(this.x + (this.direction === 1 ? this.width : 0), this.y + 10, this.direction, this.bubbleSpeed);
             this.lastShot = Date.now();
             this.isShooting = true;
             this.shootingTimer = 200;
@@ -163,14 +177,25 @@ export class Player {
     }
 
     hit() {
-        if (this.isInvincible) return;
+        if (this.isInvincible || this.game.isGameOver) return;
+        
+        this.game.lives--;
+        console.log('Player hit! Lives remaining:', this.game.lives);
+
+        if (this.game.lives <= 0) {
+            this.game.isGameOver = true;
+            return;
+        }
+
+        // 목숨이 남아있으면 리스폰 및 무적 부여
         this.isInvincible = true;
         this.invincibleTimer = 2000;
-        console.log('Player hit! isInvincible is now:', this.isInvincible);
         
-        // Push the player back slightly and stop vertical velocity
-        this.vy = -5;
-        this.vx = this.direction * -5;
+        // 시작 위치로 리스폰
+        this.x = this.isPlayer2 ? 680 : 80;
+        this.y = 520;
+        this.vx = 0;
+        this.vy = 0;
     }
 
     draw(ctx) {
@@ -196,5 +221,19 @@ export class Player {
             ctx.drawImage(this.processedImage, sx, sy, sw, sh, this.x, this.y, this.width, this.height);
         }
         ctx.restore();
+
+        // 전환 중일 경우 버블을 주인공 위에 그려줌
+        if (this.isTransitioning) {
+            const bsx = 340; // Bubble sprite from tiles.png
+            const bsy = 340;
+            const bsw = 260;
+            const bsh = 260;
+            
+            ctx.save();
+            // 약간의 출렁임(Wobble) 효과
+            const wobble = Math.sin(this.transitionBubbleTimer * 0.005) * 5;
+            ctx.drawImage(this.bubbleSprite, bsx, bsy, bsw, bsh, this.x - 5, this.y - 5 + wobble, this.width + 10, this.height + 10);
+            ctx.restore();
+        }
     }
 }

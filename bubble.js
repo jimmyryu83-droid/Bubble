@@ -1,9 +1,9 @@
 export class Bubble {
-    constructor(game, x, y, direction) {
+    constructor(game, x, y, direction, speed = 10) {
         this.game = game;
         this.x = x;
         this.y = y;
-        this.vx = direction * 10;
+        this.vx = direction * speed;
         this.vy = 0;
         this.width = 40;
         this.height = 40;
@@ -33,6 +33,7 @@ export class Bubble {
                 this.vy = -0.8;
             }
         } else if (this.state === 'floating' || this.state === 'trapped') {
+            if (this.vy === 0) this.vy = -0.8; // 떠오르기 시작
             this.x += this.vx;
             this.y += this.vy;
             this.vx = Math.sin(this.lifetime * this.wobbleSpeed) * this.wobbleAmount;
@@ -101,6 +102,10 @@ export class Bubble {
 
     pop(forcePoppingEffect = false) {
         if (this.state === 'popping') return; // 이미 터지는 중이면 무시
+        
+        // 1개당 10점 포인트 추가
+        this.game.score += 10;
+        this.game.updateScore();
         
         if (this.trappedEnemy || forcePoppingEffect) {
             this.state = 'popping';
