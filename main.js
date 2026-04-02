@@ -17,20 +17,24 @@ class Game {
         this.platforms = [];
         
         this.currentLevel = 0;
+        this.gameState = 'TITLE'; // TITLE, PLAYING, GAMEOVER
         this.isLevelTransitioning = false;
-        this.levelClearWaitTimer = 0; // 적 전멸 후 5초 대기용
+        this.levelClearWaitTimer = 0;
         this.transitionTimer = 0;
-        this.transitionYOffset = 0; // 배경 이동용 오프셋
+        this.transitionYOffset = 0;
         
         this.input = {
             keys: []
         };
         this.score = 0;
         this.highScore = 150000;
-        this.lives = 3; // 기본 목숨 1 + 추가 2 = 3
-        this.isGameOver = false;
+        this.lives = 3;
+        this.gameOverTimer = 0;
+        this.demoTimer = 0;
 
         this.initInput();
+        const overlay = document.getElementById('start-overlay');
+        overlay.querySelector('h1').innerText = 'CLICK TO START';
         this.loadLevel(0);
         this.gameLoop();
     }
@@ -38,10 +42,12 @@ class Game {
     initInput() {
         const overlay = document.getElementById('start-overlay');
         overlay.addEventListener('click', () => {
+            if (this.gameState === 'TITLE' || this.gameState === 'GAMEOVER') {
+                this.startNewGame();
+            }
             overlay.style.display = 'none';
             this.canvas.setAttribute('tabindex', '0');
             this.canvas.focus();
-            console.log('Game focused');
         });
 
         this.canvas.addEventListener('keydown', (e) => {
@@ -64,8 +70,8 @@ class Game {
 
     loadLevel(index) {
         if (index >= LEVELS.length) {
-            console.log('ALL LEVELS CLEARED!');
-            this.isLevelTransitioning = true;
+            this.gameState = 'GAMECLEAR';
+            this.gameOverTimer = 0;
             return;
         }
         const level = LEVELS[index];
@@ -76,11 +82,12 @@ class Game {
         this.foods = [];
         
         this.player.x = 80;
-        this.player.y = 520;
+        this.player.y = -50; // 공중에서 등장 시작
         this.player.vx = 0;
         this.player.vy = 0;
         
-        this.player.isTransitioning = false; // 버블에서 탈출
+        this.player.isTransitioning = false;
+        this.player.isArriving = true; // 등장 연출 시작
         this.player.transitionBubbleTimer = 0;
         this.transitionYOffset = 0; // 오프셋 초기화
         this.levelClearWaitTimer = 0; // 대기 타이머 초기화
@@ -95,8 +102,17 @@ class Game {
     nextLevel() {
         if (this.isLevelTransitioning) return;
         this.isLevelTransitioning = true;
-        this.transitionTimer = 2000; // 전환 연출 시간 (2초)
-        this.player.isTransitioning = true; // 주인공 버블에 가두기
+        this.transitionTimer = 2000;
+        this.player.isTransitioning = true;
+    }
+
+    startNewGame() {
+        this.score = 0;
+        this.lives = 3;
+        this.currentLevel = 0;
+        this.gameState = 'PLAYING';
+        this.loadLevel(0);
+        this.updateScore();
     }
 
     shootBubble(x, y, direction, speed) {
@@ -110,17 +126,21 @@ class Game {
     spawnFood(x, y, type = 'fruit') {
         const foodTypes = [
             { name: 'cherry', color: '#ff3366', value: 500, type: 'fruit' },
-            { name: 'banana', color: '#ffff33', value: 800, type: 'fruit' },
+            { name: 'orange', color: '#ff8800', value: 800, type: 'fruit' },
             { name: 'apple', color: '#ff3333', value: 1000, type: 'fruit' },
+            { name: 'pinkCandy', color: '#ff66cc', value: 200, type: 'powerup_rate' },
+            { name: 'blueCandy', color: '#3366ff', value: 200, type: 'powerup_range' },
             { name: 'yellowCandy', color: '#ffff00', value: 200, type: 'powerup_speed' },
-            { name: 'blueCandy', color: '#00ccff', value: 200, type: 'powerup_range' },
+            { name: 'shoes', color: '#ffffff', value: 500, type: 'powerup_walk' },
         ];
         
-        // 사탕은 20% 확률로 등장 (과일 80%)
+        // 사탕/운동화는 약 8% 확률로 아주 가끔 등장하도록 (과일 92%)
         let food;
         const rand = Math.random();
-        if (rand < 0.1) food = foodTypes[3]; // Yellow
-        else if (rand < 0.2) food = foodTypes[4]; // Blue
+        if (rand < 0.02) food = foodTypes[3]; // Pink Candy (2%)
+        else if (rand < 0.04) food = foodTypes[4]; // Blue Candy (2%)
+        else if (rand < 0.06) food = foodTypes[5]; // Yellow Candy (2%)
+        else if (rand < 0.08) food = foodTypes[6]; // Shoes (2%)
         else food = foodTypes[Math.floor(Math.random() * 3)]; // Fruits
         
         this.foods.push({
@@ -154,22 +174,82 @@ class Game {
     }
 
     gameLoop() {
-        if (this.isGameOver) {
+        if (this.gameState === 'GAMECLEAR') {
             this.draw();
-            // 게임 오버 메시지
+            this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            this.ctx.fillRect(0, 0, 800, 600);
+            this.ctx.fillStyle = 'yellow';
+            this.ctx.font = '48px "Press Start 2P"';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('GAME CLEAR', 400, 300);
+            this.ctx.font = '24px "Press Start 2P"';
+            this.ctx.fillText('CONGRATULATIONS!', 400, 360);
+            
+            this.gameOverTimer += 16;
+            if (this.gameOverTimer > 5000) {
+                this.gameState = 'TITLE';
+                this.gameOverTimer = 0;
+                const overlay = document.getElementById('start-overlay');
+                overlay.style.display = 'flex';
+                this.loadLevel(0);
+            }
+        } else if (this.gameState === 'GAMEOVER') {
+            this.draw();
+            this.ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            this.ctx.fillRect(0, 0, 800, 600);
             this.ctx.fillStyle = 'white';
             this.ctx.font = '48px "Press Start 2P"';
             this.ctx.textAlign = 'center';
             this.ctx.fillText('GAME OVER', 400, 300);
-            this.ctx.font = '24px "Press Start 2P"';
-            this.ctx.fillText('CLICK TO RESTART', 400, 360);
-            return;
+            
+            this.gameOverTimer += 16;
+            if (this.gameOverTimer > 3000) {
+                this.gameState = 'TITLE';
+                this.gameOverTimer = 0;
+                const overlay = document.getElementById('start-overlay');
+                overlay.style.display = 'flex';
+                overlay.querySelector('h1').innerText = 'CLICK TO START';
+                this.loadLevel(0);
+            }
+        } else if (this.gameState === 'TITLE') {
+            this.demoUpdate();
+            this.draw();
+            // TITLE overlay is handled by CSS/HTML overlay visibility
+        } else {
+            this.update();
+            this.draw();
         }
 
-        this.update();
-        this.draw();
-
         requestAnimationFrame(() => this.gameLoop());
+    }
+
+    demoUpdate() {
+        // AI Input Simulation
+        const demoKeys = [];
+        const nearestEnemy = this.enemies.find(e => e.state === 'alive' || e.state === 'angry');
+        
+        if (nearestEnemy) {
+            if (nearestEnemy.x < this.player.x - 40) demoKeys.push(this.player.isPlayer2 ? 'a' : 'ArrowLeft');
+            else if (nearestEnemy.x > this.player.x + 40) demoKeys.push(this.player.isPlayer2 ? 'd' : 'ArrowRight');
+            
+            if (nearestEnemy.y < this.player.y - 20) demoKeys.push(this.player.isPlayer2 ? 'w' : 'ArrowUp');
+            if (Math.abs(nearestEnemy.x - this.player.x) < 200 && Math.abs(nearestEnemy.y - this.player.y) < 50) {
+                demoKeys.push(this.player.isPlayer2 ? 'q' : ' ');
+            }
+        }
+        
+        // Use normal update logic with simulated keys
+        const originalKeys = this.input.keys;
+        this.input.keys = demoKeys;
+        this.update();
+        this.input.keys = originalKeys;
+
+        // Auto-reset demo if stuck or cleared
+        this.demoTimer += 16;
+        if (this.demoTimer > 15000 || (this.enemies.length === 0 && this.levelClearWaitTimer < 100)) {
+            this.loadLevel(Math.floor(Math.random() * LEVELS.length));
+            this.demoTimer = 0;
+        }
     }
 
     update() {
@@ -206,14 +286,15 @@ class Game {
 
             // Bubble-Enemy Collision
             if (bubble.state === 'shooting') {
-                this.enemies.forEach(enemy => {
+                for (const enemy of this.enemies) {
                     if ((enemy.state === 'alive' || enemy.state === 'angry') && this.checkCollision(bubble, enemy)) {
                         bubble.state = 'trapped';
                         bubble.trappedEnemy = enemy;
                         bubble.vy = -0.8; // 즉시 위로 떠오르기 시작
                         enemy.state = 'trapped';
+                        break; // 한 개의 버블은 한 명의 적만 가둡니다.
                     }
-                });
+                }
             }
         });
 
@@ -251,13 +332,19 @@ class Game {
                 this.score += food.value;
                 this.updateScore();
 
-                // 아이템 효과 적용
-                if (food.type === 'powerup_speed') {
-                    this.player.shootDelay = Math.max(100, this.player.shootDelay - 30);
-                    console.log('연사력 강화!', this.player.shootDelay);
+                // 아이템 효과 적용 (유튜브 영상 고증)
+                if (food.type === 'powerup_rate') {
+                    this.player.shootDelay = Math.max(80, this.player.shootDelay - 40);
+                    console.log('연사 속도 강화!', this.player.shootDelay);
                 } else if (food.type === 'powerup_range') {
-                    this.player.bubbleSpeed = Math.min(20, this.player.bubbleSpeed + 2);
+                    this.player.bubbleSpeed = Math.min(15, this.player.bubbleSpeed + 2);
                     console.log('사거리 강화!', this.player.bubbleSpeed);
+                } else if (food.type === 'powerup_speed') {
+                    this.player.bubbleSpeed = Math.min(20, this.player.bubbleSpeed + 3);
+                    console.log('버블 비행 속도 강화!', this.player.bubbleSpeed);
+                } else if (food.type === 'powerup_walk') {
+                    this.player.speed = Math.min(7, this.player.speed + 1);
+                    console.log('이동 속도 강화!', this.player.speed);
                 }
 
                 return false; // 먹었으면 제거
@@ -325,7 +412,7 @@ class Game {
             this.ctx.stroke();
         });
         this.ctx.shadowBlur = 0;
-
+        
         // Draw HUD overlay (optional if CSS is used, but good to have)
         this.player.draw(this.ctx);
         this.bubbles.forEach(bubble => bubble.draw(this.ctx));
@@ -339,18 +426,21 @@ class Game {
         const size = 10;
         const spacing = 20;
 
-        ctx.fillStyle = '#0affff'; // 다이아몬드 색상 (네온 블루)
+        ctx.fillStyle = '#0affff';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
         ctx.shadowBlur = 5;
         ctx.shadowColor = '#0affff';
 
         for (let i = 0; i < this.lives; i++) {
             ctx.beginPath();
-            ctx.moveTo(startX + i * spacing, startY - size); // Top
-            ctx.lineTo(startX + i * spacing + size, startY); // Right
-            ctx.lineTo(startX + i * spacing, startY + size); // Bottom
-            ctx.lineTo(startX + i * spacing - size, startY); // Left
+            ctx.moveTo(startX + i * spacing, startY - size);
+            ctx.lineTo(startX + i * spacing + size, startY);
+            ctx.lineTo(startX + i * spacing, startY + size);
+            ctx.lineTo(startX + i * spacing - size, startY);
             ctx.closePath();
             ctx.fill();
+            ctx.stroke();
         }
         ctx.shadowBlur = 0;
         
@@ -361,20 +451,46 @@ class Game {
             this.ctx.shadowColor = food.color;
             this.ctx.fillStyle = food.color;
             
-            // 과일 모양 그리기
-            this.ctx.beginPath();
-            this.ctx.arc(food.x + food.width/2, food.y + food.height/2, 12, 0, Math.PI * 2);
-            this.ctx.fill();
+            // 모양 그리기
+            if (food.type.startsWith('powerup')) {
+                if (food.type === 'powerup_walk') {
+                    // 운동화 모양 (단순화)
+                    this.ctx.fillRect(food.x + 4, food.y + 16, 24, 10);
+                    this.ctx.fillRect(food.x + 20, food.y + 6, 8, 20);
+                } else {
+                    // 사탕 모양 (가로형)
+                    this.ctx.fillRect(food.x + 4, food.y + 10, 24, 12); // 중앙 몸통
+                    
+                    // 왼쪽 매듭
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(food.x + 4, food.y + 16);
+                    this.ctx.lineTo(food.x - 2, food.y + 8);
+                    this.ctx.lineTo(food.x - 2, food.y + 24);
+                    this.ctx.fill();
+                    
+                    // 오른쪽 매듭
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(food.x + 28, food.y + 16);
+                    this.ctx.lineTo(food.x + 34, food.y + 8);
+                    this.ctx.lineTo(food.x + 34, food.y + 24);
+                    this.ctx.fill();
+                }
+            } else {
+                // 과일 모양 (원형)
+                this.ctx.beginPath();
+                this.ctx.arc(food.x + food.width/2, food.y + food.height/2, 12, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // 꼭지/잎사귀 (과일만)
+                this.ctx.fillStyle = '#0f0';
+                this.ctx.fillRect(food.x + food.width/2 - 2, food.y + food.height/2 - 16, 4, 6);
+            }
             
-            // 하이라이트 추가
+            // 공통 하이라이트 추가
             this.ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
             this.ctx.beginPath();
             this.ctx.arc(food.x + food.width/2 - 4, food.y + food.height/2 - 4, 4, 0, Math.PI * 2);
             this.ctx.fill();
-            
-            // 꼭지/잎사귀
-            this.ctx.fillStyle = '#0f0';
-            this.ctx.fillRect(food.x + food.width/2 - 2, food.y + food.height/2 - 16, 4, 6);
             
             this.ctx.restore();
         });

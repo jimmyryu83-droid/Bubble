@@ -49,6 +49,7 @@ export class Player {
 
         // 스테이지 전환 정보
         this.isTransitioning = false;
+        this.isArriving = false;
         this.transitionBubbleTimer = 0;
         this.bubbleSprite = new Image();
         this.bubbleSprite.src = 'assets/tiles.png';
@@ -79,6 +80,19 @@ export class Player {
             // 전환 중에는 입력 및 물리 무시, 서서히 위로 떠오름
             this.y -= 1.5;
             this.transitionBubbleTimer += 16;
+            return;
+        }
+
+        if (this.isArriving) {
+            // 스테이지 시작 시 버블 타고 내려옴
+            this.y += 2.5; 
+            this.transitionBubbleTimer += 16;
+            // 목표 지점(520) 근처에 오면 종료
+            if (this.y >= 520) {
+                this.y = 520;
+                this.isArriving = false;
+                this.transitionBubbleTimer = 0;
+            }
             return;
         }
 
@@ -177,13 +191,14 @@ export class Player {
     }
 
     hit() {
-        if (this.isInvincible || this.game.isGameOver) return;
+        if (this.isInvincible || this.isArriving || this.isTransitioning || this.game.gameState === 'GAMEOVER') return;
         
         this.game.lives--;
         console.log('Player hit! Lives remaining:', this.game.lives);
 
         if (this.game.lives <= 0) {
-            this.game.isGameOver = true;
+            this.game.gameState = 'GAMEOVER';
+            this.game.gameOverTimer = 0;
             return;
         }
 
@@ -222,8 +237,8 @@ export class Player {
         }
         ctx.restore();
 
-        // 전환 중일 경우 버블을 주인공 위에 그려줌
-        if (this.isTransitioning) {
+        // 전환 중이거나 등장 중일 경우 버블을 주인공 위에 그려줌
+        if (this.isTransitioning || this.isArriving) {
             const bsx = 340; // Bubble sprite from tiles.png
             const bsy = 340;
             const bsw = 260;

@@ -18,7 +18,8 @@ export class Bubble {
         this.wobbleAmount = 0.3 + Math.random() * 0.2;
         
         this.poppingTimer = 0;
-        this.poppingDuration = 500; // 0.5초 동안 사방으로 튐
+        this.poppingDuration = 500;
+        this.isTimeout = false; // 시간이 다 되어 터졌는지 여부
     }
 
     update() {
@@ -48,7 +49,16 @@ export class Bubble {
             this.poppingTimer += 16;
             if (this.poppingTimer > this.poppingDuration) {
                 if (this.trappedEnemy) {
-                    this.game.defeatEnemy(this.trappedEnemy);
+                    if (this.isTimeout) {
+                        // 시간이 다 되어 터지면 적이 각성(Angry) 상태로 부활
+                        this.trappedEnemy.state = 'alive';
+                        this.trappedEnemy.isAngry = true;
+                        this.trappedEnemy.vx = (Math.random() > 0.5 ? 1 : -1) * 2;
+                        this.trappedEnemy.vy = -10; // 튀어나올 때 점프 효과
+                    } else {
+                        // 플레이어가 직접 터뜨린 경우에만 처치
+                        this.game.defeatEnemy(this.trappedEnemy);
+                    }
                 }
                 this.game.removeBubble(this);
             }
@@ -60,7 +70,7 @@ export class Bubble {
         }
 
         if (this.state !== 'popping' && this.lifetime > this.maxLifetime) {
-            this.pop();
+            this.pop(false, true); // 시간이 다 된 경우 타임아웃 플래그 전달
         }
 
         if (this.x < 32) this.x = 32;
@@ -81,6 +91,7 @@ export class Bubble {
             const scale = 1 + Math.random() * 0.5;
             ctx.drawImage(this.image, sx, sy, sw, sh, this.x - (this.width * (scale-1))/2, this.y - (this.height * (scale-1))/2, this.width * scale, this.height * scale);
         } else {
+            ctx.globalAlpha = 0.6; // 일반 거품 투명도 조절로 고전 느낌 재현
             ctx.drawImage(this.image, sx, sy, sw, sh, this.x, this.y, this.width, this.height);
         }
         ctx.restore();
@@ -92,26 +103,44 @@ export class Bubble {
             const esh = 240;
             
             ctx.save();
-            if (this.state === 'popping' || this.lifetime % 200 < 100) {
-                ctx.filter = 'brightness(1.5) hue-rotate(90deg)';
+            // 포획된 거품은 오리지널처럼 화려하게 깜빡임 (초록/노랑 변환)
+            if (this.state === 'popping' || this.lifetime % 300 < 150) {
+                ctx.filter = 'brightness(1.8) hue-rotate(120deg) drop-shadow(0 0 5px gold)';
+            } else {
+                ctx.filter = 'brightness(1.2) hue-rotate(60deg)';
             }
             ctx.drawImage(this.image, esx, esy, esw, esh, this.x + 8, this.y + 8, this.width - 16, this.height - 16);
             ctx.restore();
         }
     }
 
-    pop(forcePoppingEffect = false) {
+    pop(forcePoppingEffect = false, isTimeout = false) {
         if (this.state === 'popping') return; // 이미 터지는 중이면 무시
         
         // 1개당 10점 포인트 추가
         this.game.score += 10;
         this.game.updateScore();
         
+        this.isTimeout = isTimeout;
         if (this.trappedEnemy || forcePoppingEffect) {
             this.state = 'popping';
             this.poppingTimer = 0;
         } else {
             this.game.removeBubble(this);
+        }
+
+        // 주변 거품 연쇄 터짐 (타임아웃 터짐이 아닐 때만 개시)
+        if (!isTimeout) {
+            // 현재 터지는 거품과 인접한 필드 내 다른 거품들을 탐색
+            const neighbors = this.game.bubbles.filter(other => {
+                if (other === this || (other.state !== 'floating' && other.state !== 'trapped')) return false;
+                const dx = other.x - this.x;
+                const dy = other.y - this.y;
+                return Math.sqrt(dx * dx + dy * dy) < 45; // 거품 크기가 40px이므로 약 45px 이내
+            });
+            
+            // 인접 거품들도 함께 터뜨림 (재귀적으로 연쇄 반응)
+            neighbors.forEach(neighbor => neighbor.pop(neighbor.state === 'trapped', false));
         }
     }
 }

@@ -54,7 +54,22 @@ body {
     color: #00ffff;
 }
 
-#start-overlay, #loading-screen {
+#start-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    cursor: pointer;
+}
+
+#loading-screen {
     position: absolute;
     top: 0;
     left: 0;
@@ -66,7 +81,6 @@ body {
     justify-content: center;
     align-items: center;
     z-index: 100;
-    cursor: pointer;
 }
 
 h1 {
