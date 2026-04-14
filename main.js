@@ -2,6 +2,7 @@ import { Player } from './player.js';
 import { Bubble } from './bubble.js';
 import { Enemy } from './enemy.js';
 import { LEVELS } from './levels.js';
+import { aiManager } from './ai.js';
 
 class Game {
     constructor() {
@@ -9,6 +10,7 @@ class Game {
         this.ctx = this.canvas.getContext('2d');
         this.canvas.width = 800;
         this.canvas.height = 600;
+        this.ctx.imageSmoothingEnabled = false; // 픽셀 아트가 흐려지지 않게 설정
 
         this.player = new Player(this);
         this.bubbles = [];
@@ -28,9 +30,13 @@ class Game {
         };
         this.score = 0;
         this.highScore = 150000;
-        this.lives = 3;
         this.gameOverTimer = 0;
         this.demoTimer = 0;
+
+        // AI Coaching tracking
+        this.lastPlayerPos = { x: 0, y: 0 };
+        this.stallTimer = 0;
+        this.lastAiCall = 0;
 
         this.initInput();
         const overlay = document.getElementById('start-overlay');
@@ -97,6 +103,14 @@ class Game {
         
         // Flash effect for new round
         this.flashTimer = 500;
+
+        // Trigger AI Stage Start Dialogue
+        this.triggerStageStartAi(level.round, this.enemies);
+    }
+
+    async triggerStageStartAi(round, enemies) {
+        const text = await aiManager.getStageStartDialogue(round, enemies);
+        if (text) aiManager.showMessage(text, 'npc');
     }
 
     nextLevel() {
@@ -252,6 +266,15 @@ class Game {
         }
     }
 
+    async addAiScoreBonus(comboCount) {
+        const text = await aiManager.getComboEvaluation(comboCount);
+        if (text) {
+            aiManager.showMessage(text, 'bonus');
+            this.score += 5000;
+            this.updateScore();
+        }
+    }
+
     update() {
         if (this.isLevelTransitioning) {
             this.transitionTimer -= 16;
@@ -366,6 +389,42 @@ class Game {
                 this.nextLevel(); // 대기 후 연출 시작
             }
         }
+
+        // AI Coach / Stall Detection
+        this.updateStallDetection();
+    }
+
+    updateStallDetection() {
+        if (this.gameState !== 'PLAYING' || this.isLevelTransitioning) return;
+
+        const now = Date.now();
+        const dist = Math.abs(this.player.x - this.lastPlayerPos.x) + Math.abs(this.player.y - this.lastPlayerPos.y);
+        
+        if (dist < 5) { // 거의 움직이지 않음
+            this.stallTimer += 16;
+            if (this.stallTimer > 10000 && now - this.lastAiCall > 30000) { // 10초 정체 및 30초 간격
+                this.triggerCoachAi();
+                this.stallTimer = 0;
+                this.lastAiCall = now;
+            }
+        } else {
+            this.stallTimer = 0;
+            this.lastPlayerPos = { x: this.player.x, y: this.player.y };
+        }
+    }
+
+    async triggerCoachAi() {
+        const nearestEnemy = this.enemies[0] || { x: 400, y: 300 };
+        const state = {
+            stage: this.currentLevel + 1,
+            lives: this.lives,
+            playerX: Math.round(this.player.x),
+            playerY: Math.round(this.player.y),
+            enemyX: Math.round(nearestEnemy.x),
+            enemyY: Math.round(nearestEnemy.y)
+        };
+        const text = await aiManager.getCoachingAdvice(state);
+        if (text) aiManager.showMessage(text, 'coach');
     }
 
     getPlatformColor(level) {

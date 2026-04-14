@@ -7,6 +7,16 @@ const baseDir = __dirname;
 
 http.createServer((req, res) => {
     let filePath = path.join(baseDir, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
+    
+    // API 키를 안전하게 제공하기 위한 엔드포인트 추가
+    if (req.url === '/api/config') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            apiKey: process.env.bubble || '' 
+        }));
+        return;
+    }
+
     const extname = String(path.extname(filePath)).toLowerCase();
     const mimeTypes = {
         '.html': 'text/html',

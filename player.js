@@ -27,8 +27,10 @@ export class Player {
         
         this.state = 'IDLE'; 
         this.frameX = 0;
-        this.frameTimer = 0;
-        this.frameInterval = 120; 
+        this.frameY = 0; // 스프라이트 시트의 행
+        this.frameCount = 0; // 애니메이션 속도 조절용 카운터
+        this.flip = isPlayer2; // true면 왼쪽, false면 오른쪽을 봄
+        this.frameInterval = 120; // 기존 간격 유지 (또는 frameCount로 대체 가능)
         
         this.animations = {
             'IDLE': { row: 0, frames: 4 },
@@ -105,10 +107,12 @@ export class Player {
         if (keys.includes(leftKey)) {
             this.vx = -this.speed;
             this.direction = -1;
+            this.flip = true;
             if (this.grounded) this.state = 'WALKING';
         } else if (keys.includes(rightKey)) {
             this.vx = this.speed;
             this.direction = 1;
+            this.flip = false;
             if (this.grounded) this.state = 'WALKING';
         } else {
             this.vx = 0;
@@ -182,9 +186,9 @@ export class Player {
         if (this.y < -this.height) this.y = 600;
         if (this.y > 600) this.y = -this.height;
 
-        this.frameTimer += 16;
-        if (this.frameTimer >= this.frameInterval) {
-            this.frameTimer = 0;
+        this.frameCount++;
+        if (this.frameCount > (this.state === 'WALKING' ? 6 : 10)) { // 걷는 중엔 더 빠르게
+            this.frameCount = 0;
             const anim = this.animations[this.state];
             this.frameX = (this.frameX + 1) % anim.frames;
         }
@@ -228,10 +232,11 @@ export class Player {
         if (this.isPlayer2) {
              ctx.filter = 'hue-rotate(180deg)'; 
         }
-        if (this.direction === -1) {
-            ctx.translate(this.x + this.width, this.y);
+
+        if (this.flip) {
             ctx.scale(-1, 1);
-            ctx.drawImage(this.processedImage, sx, sy, sw, sh, 0, 0, this.width, this.height);
+            // 반전 적용: -(x + width)
+            ctx.drawImage(this.processedImage, sx, sy, sw, sh, -this.x - this.width, this.y, this.width, this.height);
         } else {
             ctx.drawImage(this.processedImage, sx, sy, sw, sh, this.x, this.y, this.width, this.height);
         }

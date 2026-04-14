@@ -114,8 +114,13 @@ export class Bubble {
         }
     }
 
-    pop(forcePoppingEffect = false, isTimeout = false) {
+    pop(forcePoppingEffect = false, isTimeout = false, comboData = null) {
         if (this.state === 'popping') return; // 이미 터지는 중이면 무시
+        
+        // 콤보 데이터 초기화 (최초 팝업 시)
+        if (!comboData && !isTimeout && this.trappedEnemy) {
+            comboData = { count: 0 };
+        }
         
         // 1개당 10점 포인트 추가
         this.game.score += 10;
@@ -125,6 +130,9 @@ export class Bubble {
         if (this.trappedEnemy || forcePoppingEffect) {
             this.state = 'popping';
             this.poppingTimer = 0;
+            if (this.trappedEnemy && comboData) {
+                comboData.count++;
+            }
         } else {
             this.game.removeBubble(this);
         }
@@ -140,7 +148,13 @@ export class Bubble {
             });
             
             // 인접 거품들도 함께 터뜨림 (재귀적으로 연쇄 반응)
-            neighbors.forEach(neighbor => neighbor.pop(neighbor.state === 'trapped', false));
+            neighbors.forEach(neighbor => neighbor.pop(neighbor.state === 'trapped', false, comboData));
+
+            // 최초 호출자라면 콤보 결과 확인
+            if (comboData && comboData.count >= 2) {
+                console.log(`COMBO! ${comboData.count} enemies popped!`);
+                this.game.addAiScoreBonus(comboData.count);
+            }
         }
     }
 }

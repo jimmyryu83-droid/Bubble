@@ -17,8 +17,10 @@ export class Enemy {
         this.image.src = 'assets/tiles.png';
         
         this.direction = this.vx > 0 ? 1 : -1;
-        this.animTimer = 0;
-        this.frame = 0;
+        this.flip = this.direction === -1;
+        this.frameX = 0;
+        this.frameY = (type === 'monsta' ? 1 : 0); // 껍질(Zen-Chan)은 0, 유령(Monsta)은 1 등으로 구분 가능
+        this.frameCount = 0;
         this.isAngry = false;
     }
 
@@ -58,11 +60,13 @@ export class Enemy {
                 this.x = 32;
                 this.vx *= -1;
                 this.direction = 1;
+                this.flip = false;
             }
             if (this.x > 768 - this.width) {
                 this.x = 768 - this.width;
                 this.vx *= -1;
                 this.direction = -1;
+                this.flip = true;
             }
 
             this.grounded = false;
@@ -92,10 +96,10 @@ export class Enemy {
             if (this.y < -this.height) this.y = 600;
             if (this.y > 600) this.y = -this.height;
 
-            this.animTimer += 16;
-            if (this.animTimer > (this.isAngry ? 100 : 200)) {
-                this.animTimer = 0;
-                this.frame = (this.frame + 1) % 2;
+            this.frameCount++;
+            if (this.frameCount > (this.isAngry ? 6 : 12)) {
+                this.frameCount = 0;
+                this.frameX = (this.frameX + 1) % 2;
             }
         }
     }
@@ -112,15 +116,16 @@ export class Enemy {
         if (this.x < 32 || this.x > 768 - this.width) {
             this.monstaVx *= -1;
             this.direction = this.monstaVx > 0 ? 1 : -1;
+            this.flip = this.direction === -1;
         }
         if (this.y < 32 || this.y > 568 - this.height) {
             this.monstaVy *= -1;
         }
 
-        this.animTimer += 16;
-        if (this.animTimer > 150) {
-            this.animTimer = 0;
-            this.frame = (this.frame + 1) % 2;
+        this.frameCount++;
+        if (this.frameCount > 10) {
+            this.frameCount = 0;
+            this.frameX = (this.frameX + 1) % 2;
         }
     }
 
@@ -143,10 +148,10 @@ export class Enemy {
                 ctx.filter = 'hue-rotate(-120deg) brightness(1.2)';
             }
             
-            if (this.direction === -1) {
-                ctx.translate(this.x + this.width, this.y);
+            if (this.flip) {
                 ctx.scale(-1, 1);
-                ctx.drawImage(this.image, sx, sy, sw, sh, 0, 0, this.width, this.height);
+                // 반전 적용: -(x + width)
+                ctx.drawImage(this.image, sx, sy, sw, sh, -this.x - this.width, this.y, this.width, this.height);
             } else {
                 ctx.drawImage(this.image, sx, sy, sw, sh, this.x, this.y, this.width, this.height);
             }
