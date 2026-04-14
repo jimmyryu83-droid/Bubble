@@ -67,6 +67,10 @@ class Game {
                 this.levelClearWaitTimer = 0; // 즉시 대기 끝
                 console.log('CHEAT: Next Level Skip');
             }
+            // AI Test Key: T
+            if (e.key.toLowerCase() === 't') {
+                aiManager.testAi();
+            }
         });
         this.canvas.addEventListener('keyup', (e) => {
             this.input.keys = this.input.keys.filter(k => k !== e.key);

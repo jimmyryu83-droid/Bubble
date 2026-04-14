@@ -34,19 +34,33 @@ export class Enemy {
                 return;
             }
             if (this.isAngry) {
-                // 각성(Angry) 상태일 때는 기본적으로 플레이어를 추적합니다.
-                if (this.game.player.x < this.x - 10) {
-                    this.vx = -1.5; // 베이스 속도
+                // 각성(Angry) 상태: 훨씬 빠르고 공격적으로 이동
+                const distToPlayer = Math.abs(this.game.player.x - this.x);
+                
+                // 플레이어 추적 및 변칙적 이동
+                if (this.game.player.x < this.x - 5) {
+                    this.vx = -1.8; // 기본보다 더 빠른 속도
                     this.direction = -1;
-                } else if (this.game.player.x > this.x + 10) {
-                    this.vx = 1.5;
+                } else if (this.game.player.x > this.x + 5) {
+                    this.vx = 1.8;
                     this.direction = 1;
                 }
 
-                // 플레이어가 위에 있을 경우 더 자주 점프하여 추격합니다.
-                if (this.grounded && this.game.player.y < this.y - 40 && Math.random() < 0.02) {
-                    this.vy = -12;
+                // --- 활동성 강화: 돌진 및 변칙 점프 ---
+                // 1. 플레이어와 같은 층에 있거나 가까우면 돌진
+                if (Math.abs(this.game.player.y - this.y) < 50 && distToPlayer < 200) {
+                    this.vx *= 1.5; // 일시적 돌진
+                }
+
+                // 2. 불규칙한 점프 (기본보다 훨씬 자주 점프)
+                if (this.grounded && (Math.random() < 0.05 || (this.game.player.y < this.y - 40 && Math.random() < 0.1))) {
+                    this.vy = -12 - Math.random() * 3; // 점프 높이도 변화를 줌
                     this.grounded = false;
+                }
+                
+                // 3. 지그재그 움직임 (플레이어에게 혼란 유도)
+                if (Math.random() < 0.02) {
+                    this.vx *= -1.2; 
                 }
             }
 

@@ -137,34 +137,35 @@ h1 {
 .speech-bubble {
     position: relative;
     background: #fff;
-    border: 4px solid #000;
-    border-radius: 10px;
-    padding: 10px 15px;
+    border: 5px solid #000;
+    border-radius: 12px;
+    padding: 15px 20px;
     color: #000;
-    max-width: 250px;
-    font-size: 10px;
-    line-height: 1.4;
+    max-width: 350px;
+    font-size: 14px;
+    line-height: 1.6;
     text-align: center;
-    box-shadow: 4px 4px 0px rgba(0,0,0,0.5);
-    animation: pop-in 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 6px 6px 0px rgba(0,0,0,0.8);
+    animation: pop-bounce 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 .speech-bubble::after {
     content: '';
     position: absolute;
-    bottom: -15px;
+    bottom: -20px;
     left: 50%;
     transform: translateX(-50%);
-    border-width: 15px 10px 0;
+    border-width: 20px 15px 0;
     border-style: solid;
     border-color: #000 transparent transparent;
 }
 
-.speech-bubble.npc { border-color: #ff33ff; color: #ff33ff; font-weight: bold; }
-.speech-bubble.bonus { border-color: #ffff00; color: #008800; font-weight: bold; }
-.speech-bubble.coach { border-color: #00ffff; color: #0066aa; font-weight: bold; }
+.speech-bubble.npc { border-color: #ff33ff; color: #ff33ff; font-weight: bold; background: #000; text-shadow: 2px 2px #330033; border-style: double; }
+.speech-bubble.bonus { border-color: #ffff00; color: #008800; font-weight: bold; background: #fff; border-width: 4px; }
+.speech-bubble.coach { border-color: #00ffff; color: #0066aa; font-weight: bold; background: #fff; border-width: 4px; }
 
-@keyframes pop-in {
+@keyframes pop-bounce {
     0% { transform: scale(0); opacity: 0; }
+    70% { transform: scale(1.1); }
     100% { transform: scale(1); opacity: 1; }
 }

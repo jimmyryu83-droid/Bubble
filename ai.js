@@ -108,7 +108,16 @@ class AiManager {
         if (this.messageTimeout) clearTimeout(this.messageTimeout);
         this.messageTimeout = setTimeout(() => {
             container.style.display = 'none';
-        }, 4000);
+        }, 8000); // 4초에서 8초로 연장
+    }
+
+    // AI 연동 확인을 위한 테스트 기능
+    testAi() {
+        this.showMessage('AI 연동 테스트 중... 곧 멋진 대사가 출력됩니다! (8초 후 사라짐)', 'coach');
+        setTimeout(async () => {
+            const text = await this.getAiResponse('플레이어에게 건네는 아주 짧고 유쾌한 인사 한마디를 한국어로 생성해줘.', 'general');
+            if (text) this.showMessage(text, 'npc');
+        }, 1500);
     }
 }
 
